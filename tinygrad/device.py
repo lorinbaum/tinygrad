@@ -49,7 +49,7 @@ class BufferOptions:
   nolru: bool = False
 
 class Buffer:
-  def __init__(self, device:str, size:int, dtype:DType, opaque:Any=None, options:Optional[BufferOptions]=None,
+  def __init__(self, device:str, size:int, dtype:DType, options:Optional[BufferOptions]=None,
                initial_value:Optional[bytes]=None, lb_refcount=0, base:Optional[Buffer]=None, offset:int=0, preallocate=False):
     assert isinstance(dtype, DType)
     if isinstance(dtype, ImageDType): options = BufferOptions(image=dtype) # TODO: image hack shouldn't be here. where should it be?
@@ -58,7 +58,6 @@ class Buffer:
       assert offset == 0, "base buffers can't have offset"
       self._base = None
       self._lb_refcount = lb_refcount
-      if opaque is not None: self.allocate(opaque)
       if initial_value is not None:
         self.allocate()
         self.copyin(memoryview(initial_value))
@@ -88,12 +87,12 @@ class Buffer:
   def __reduce__(self):
     buf = None
     if self._base is not None:
-      return self.__class__, (self.device, self.size, self.dtype, None, None, None, 0, self.base, self.offset, hasattr(self, '_buf'))
-    if self.device == "NPY": return self.__class__, (self.device, self.size, self.dtype, self._buf, self.options, None, self.lb_refcount)
+      return self.__class__, (self.device, self.size, self.dtype, None, None, 0, self.base, self.offset, hasattr(self, '_buf'))
+    if self.device == "NPY": return self.__class__, (self.device, self.size, self.dtype, self.options, None, self.lb_refcount)
     if self.is_allocated():
       buf = bytearray(self.nbytes)
       self.copyout(memoryview(buf))
-    return self.__class__, (self.device, self.size, self.dtype, None, self.options, buf, self.lb_refcount)
+    return self.__class__, (self.device, self.size, self.dtype, self.options, buf, self.lb_refcount)
   @property
   def nbytes(self): return self.size*self.dtype.itemsize
   def __del__(self):
