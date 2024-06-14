@@ -58,7 +58,6 @@ class Buffer:
       assert offset == 0, "base buffers can't have offset"
       self._base = None
       self._lb_refcount = lb_refcount
-      if opaque is not None: self.allocate(opaque)
       if initial_value is not None:
         self.allocate()
         self.copyin(memoryview(initial_value))
@@ -66,7 +65,7 @@ class Buffer:
       assert base._base is None, "base can't have a base"
       assert device == base.device, "base must have the same device"
       self._base = base
-    if preallocate: self.allocate()
+    if preallocate: self.allocate(opaque)
   @property
   def base(self) -> Buffer: return self._base if self._base is not None else self
   @property
@@ -89,7 +88,7 @@ class Buffer:
     buf = None
     if self._base is not None:
       return self.__class__, (self.device, self.size, self.dtype, None, None, None, 0, self.base, self.offset, hasattr(self, '_buf'))
-    if self.device == "NPY": return self.__class__, (self.device, self.size, self.dtype, self._buf, self.options, None, self.lb_refcount)
+    if self.device == "NPY": return self.__class__, (self.device, self.size, self.dtype, self._buf, self.options, None, self.lb_refcount, None, 0, True)
     if self.is_allocated():
       buf = bytearray(self.nbytes)
       self.copyout(memoryview(buf))
