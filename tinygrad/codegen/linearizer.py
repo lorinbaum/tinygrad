@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import List, Tuple, Any, Optional, cast, DefaultDict, Dict, Union, Final, Iterator, Sequence
+from typing import List, Tuple, Optional, cast, DefaultDict, Dict, Union, Final, Iterator, Sequence
 import itertools, math, functools
 from collections import defaultdict
 
@@ -30,6 +30,7 @@ def expand_idxs(nodes:Sequence[Node]) -> Tuple[Union[Variable, NumNode], ...]:
   return tuple([v if v not in eidxs[:j] else NumNode(0) for j, v in enumerate(eidxs)])  # take only first occurrence of expand variable
 def iter_idxs(idxs:Tuple[Union[Variable, NumNode], ...]) -> Iterator[Tuple[int,...]]:
   yield from (x[::-1] for x in itertools.product(*[[x for x in range(v.min, v.max + 1)] for v in idxs[::-1]]))
+def uop_alu_idx(a:UOp, b, ops, ctx:Dict[str,UOp], op) -> UOp: return UOp.alu(op, a, (NumNode(b) if not isinstance(b, Node) else b).render(ops, ctx))
 
 def to_image_idx(base_shape:Tuple[int, ...], idxy:Node, valid:Node) -> Tuple[Tuple[Node, Node], Node]:
   idx, idy = (idxy // 4) % base_shape[1], (idxy // (4 * base_shape[1]))
@@ -44,8 +45,6 @@ def expand_node(node:Node, idxs:Optional[Tuple[Union[Variable, NumNode], ...]]=N
   if idxs is None: idxs = (expand_idx(node),)
   return [node.substitute({k:v for k,v in zip(idxs, (NumNode(x) for x in rep)) if isinstance(k, Variable)}) for rep in iter_idxs(idxs)]
 
-def uop_alu_idx(a:UOp, b, ops, ctx:Linearizer, op) -> UOp: return UOp.alu(op, a, (NumNode(b) if not isinstance(b, Node) else b).render(ops, ctx))
-
 class Linearizer(Kernel):
 
   def get_reduce_acc(self, reduceop:LazyOp):
@@ -57,7 +56,7 @@ class Linearizer(Kernel):
   # NOTE: once images are loaded, we uop them as their base float
   def get_base_dtype(self, dt:DType) -> DType: return dt.base if isinstance(dt, ImageDType) else dt
 
-  render_ops: Any = { Variable: lambda self, ops, ctx: ctx[self.expr], NumNode: lambda self, ops, ctx: UOp.const(dtypes.int, self.b),
+  render_ops = { Variable: lambda self, ops, ctx: ctx[self.expr], NumNode: lambda self, ops, ctx: UOp.const(dtypes.int, self.b),
                 MulNode: lambda self, ops, ctx: uop_alu_idx(self.a.render(ops, ctx), self.b, ops, ctx, BinaryOps.MUL),
                 DivNode: lambda self, ops, ctx: uop_alu_idx(self.a.render(ops, ctx), self.b, ops, ctx, BinaryOps.IDIV),
                 ModNode: lambda self, ops, ctx: uop_alu_idx(self.a.render(ops, ctx), self.b, ops, ctx, BinaryOps.MOD),
