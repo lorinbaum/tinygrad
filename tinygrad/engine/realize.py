@@ -162,7 +162,7 @@ class ExecItem:
       self.prg.first_run = False
     return et
 
-def lower_schedule_item(si:ScheduleItem) -> ExecItem:
+def lower_schedule_item(si:ScheduleItem) -> Optional[ExecItem]:
   assert len(set(x.device for x in si.bufs)) == 1 or si.ast[0].op is LoadOps.COPY or getenv("USE_COPY_KERNEL")
   if si.ast[0].op is BufferOps.STORE:
     runner = get_runner(si.outputs[0].device, si.ast)
@@ -178,7 +178,7 @@ def lower_schedule_item(si:ScheduleItem) -> ExecItem:
   if ast.op is LoadOps.VIEW: return ExecItem(ViewOp(out), list(si.bufs))
   raise RuntimeError(f"don't know how to lower {ast}")
 
-def lower_schedule(schedule:List[ScheduleItem]) -> Generator[ExecItem, None, None]:
+def lower_schedule(schedule:List[ScheduleItem]) -> Generator[Optional[ExecItem], None, None]:
   while len(schedule): yield lower_schedule_item(schedule.pop(0))
 
 # **************** main run function ****************
@@ -188,4 +188,4 @@ capturing: List = []  # put classes with an add method in here
 def run_schedule(schedule:List[ScheduleItem], var_vals:Optional[Dict[Variable, int]]=None, do_update_stats=True):
   for ei in lower_schedule(schedule):
     if len(capturing): capturing[0].add(ei)
-    ei.run(var_vals, do_update_stats=do_update_stats)
+    if ei is not None: ei.run(var_vals, do_update_stats=do_update_stats)
