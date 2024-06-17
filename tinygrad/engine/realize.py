@@ -86,15 +86,6 @@ class CustomOp(Runner):
     super().__init__(self.fxn.__name__, "CUSTOM", 0, 0)
   def __call__(self, rawbufs:List[Buffer], var_vals:Dict[Variable, int], wait=False): self.fxn(*rawbufs)
 
-class EmptyOp(Runner):
-  def __init__(self, buf:Buffer): super().__init__(colored(f"empty {buf.size:10d} {buf.dtype}", "yellow"), buf.device)
-  def __call__(self, rawbufs:List[Buffer], var_vals:Dict[Variable, int], wait=False): pass
-
-class ViewOp(Runner):
-  def __init__(self, buf:Buffer): super().__init__(colored(f"view {buf.nbytes:8d} @ {buf.offset:<10d}", "yellow"), buf.device)
-  def __call__(self, rawbufs:List[Buffer], var_vals:Dict[Variable, int], wait=False):
-    assert rawbufs[0]._base is not None and rawbufs[0]._base == rawbufs[1].base, f"must be base {rawbufs}"
-
 class BufferCopy(Runner):
   def __init__(self, total_sz, dest_device, src_device):
     if total_sz >= 1e6: name = f"{type(self).__name__[6:].lower()} {total_sz/1e6:7.2f}M, {dest_device[:7]:>7s} <- {src_device[:7]:7s}"
@@ -174,8 +165,7 @@ def lower_schedule_item(si:ScheduleItem) -> Optional[ExecItem]:
       kernel_type = BufferXfer
     return ExecItem(kernel_type(ast.arg, out.device, si.inputs[0].device), list(si.bufs))
   if ast.op is LoadOps.CUSTOM: return ExecItem(CustomOp(ast.arg), list(si.bufs))
-  if ast.op is LoadOps.EMPTY: return ExecItem(EmptyOp(out), list(si.bufs))
-  if ast.op is LoadOps.VIEW: return ExecItem(ViewOp(out), list(si.bufs))
+  if ast.op in {LoadOps.EMPTY, LoadOps.VIEW}: return None
   raise RuntimeError(f"don't know how to lower {ast}")
 
 def lower_schedule(schedule:List[ScheduleItem]) -> Generator[Optional[ExecItem], None, None]:
