@@ -177,5 +177,6 @@ capturing: List = []  # put classes with an add method in here
 
 def run_schedule(schedule:List[ScheduleItem], var_vals:Optional[Dict[Variable, int]]=None, do_update_stats=True):
   for ei in lower_schedule(schedule):
+    if ei is None: continue
     if len(capturing): capturing[0].add(ei)
-    if ei is not None: ei.run(var_vals, do_update_stats=do_update_stats)
+    ei.run(var_vals, do_update_stats=do_update_stats)

@@ -68,6 +68,7 @@ def fuzz_schedule(outs:List[LazyBuffer]):
 
 def _exec_si(si:ScheduleItem, seed:int):
   ei = lower_schedule_item(si)
+  if ei is None: return
   if len(capturing): capturing[0].add(ei)
   if isinstance(ei.prg, CustomOp): Tensor._seed = seed
   ei.run()
