@@ -134,18 +134,12 @@ def _recurse_lb(buf:LazyBuffer, realizes:Dict[LazyBuffer, None], allbufs:Dict[La
   if GRAPH: log_lazybuffer(buf, scheduled)
   # view
   if buf.base != buf:
-    # fuse some pads
-    if len(buf.st.views) == 1 and buf.st.views[-1].mask is not None and all_int(buf.base.st.shape) and \
-        prod(buf.base.st.shape) >= prod([y-x for x,y in buf.st.views[-1].mask]):
-      simple_pads.add(buf.base)
     # realize all expands
-    elif prod(buf.base.st.shape) < prod(buf.st.shape):
+    if prod(buf.base.st.shape) < prod(buf.st.shape):
       if buf.base.op is UnaryOps.CAST and isinstance(buf.base.srcs[0].dtype, ImageDType) and isinstance(buf.base.arg, ImageDType):
         pass # don't realize image to image casts. this is part of a larger problem
       else:
         realizes[buf.base] = None
-    # check all other pads for safe fusion
-    elif any(v.mask is not None for v in buf.st.views): simple_pads.add(buf.base)
     return _recurse_lb(buf.base, realizes, allbufs, simple_pads, children)
   # base
   allbufs[buf] = None
