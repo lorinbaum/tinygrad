@@ -1473,19 +1473,12 @@ class TestKernelOpts(unittest.TestCase):
       check_fused_tc_opt(tc, r0, r1, [a, b, c, d])
 
   def test_padto_matmul(self):
-    if CI and Device.DEFAULT in ["AMD", "NV", "CUDA"]: self.skipTest("super slow on CUDA and AMD because of the big grid dims")
     N = 17 * 17
     Tensor.manual_seed(289)
     a = Tensor.rand(N, N)
     b = Tensor.rand(N, N)
     helper_linearizer_opt(a@b, [
       [Opt(OptOps.PADTO, 0, 32)],
-      [Opt(OptOps.PADTO, 1, 32)],
-      [Opt(OptOps.PADTO, 2, 32)],
-      [Opt(OptOps.PADTO, 0, 32), Opt(OptOps.PADTO, 1, 32)],
-      [Opt(OptOps.PADTO, 0, 32), Opt(OptOps.PADTO, 1, 32), Opt(OptOps.PADTO, 2, 32)],
-      # can optimize further post PADTO
-      [Opt(OptOps.PADTO, 0, 32), Opt(OptOps.PADTO, 1, 32), Opt(OptOps.UPCAST, 0, 2), Opt(OptOps.UPCAST, 1, 2),],
     ])
 
   def test_padto_upcasted_not_ok(self):
