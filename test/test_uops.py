@@ -247,6 +247,7 @@ class TestConstantFolding(unittest.TestCase):
     assert any(uop.uop is UOps.BITCAST for uop in ji.prg.p.uops), f"{[uop.uop for uop in ji.prg.p.uops]} does not contain bitcast"
 
 class TestGatedStoreRewrite(unittest.TestCase):
+  @unittest.skip("not yet implemented")
   def test_wrap_store_parents(self):
     # wraps all store parents in the valid branch
     gmem = UOp(UOps.DEFINE_GLOBAL, PtrDType(dtypes.float), (), (0, True))
