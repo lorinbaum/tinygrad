@@ -165,6 +165,16 @@ def loop_collapse(loop_start, loop_end, compval, idx, mval, multconst):
   comprange = UOp.min(loop_end, UOp.max(UOp.alu(BinaryOps.IDIV, idx-compval-mval, mval) + (loop_end-loop_start), loop_start))
   return UOp(UOps.UNMUL, multconst.dtype, (comprange.cast(multconst.dtype) * multconst, loop_end-loop_start))
 
+# uop => (glb, idx, val, gate)
+# gate become IF
+# traverse all parent uops, find the top level parent uop
+# put that parent uop at the top with a vin of the gate
+# everything else goes under
+def rewrite_gate(root):
+  if len(root.vin) == 3 or root.vin[3].uop is UOps.IF: return
+  root.vin = root.vin[:3] + (UOp(UOps.IF, None, (root.vin[3], )), )
+  return root
+
 # this is symbolic 2.0
 constant_folder = PatternMatcher([
   # arange loop folding (early)
@@ -260,6 +270,7 @@ constant_folder = PatternMatcher([
   (UOp.lt(-UOp.var('x'), UOp.cvar('c', dtypes.int)), lambda c,x: UOp.lt(UOp.const(c.dtype, -c.arg), x)),
   # cast NOOP (NOTE: it's str to deal with PtrDType)
   (UPat(UOps.CAST, name="root"), lambda root: root.vin[0] if str(root.dtype) == str(root.vin[0].dtype) else None),
+  (UPat(UOps.STORE, name="root"), rewrite_gate)
 ])
 
 # *** uop graph ***
