@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import Iterator, Optional, Tuple, Any, Dict, List, DefaultDict, Set, Callable, Union, cast, TypeVar
 import functools, itertools, heapq, math
-from collections import defaultdict
+from collections import defaultdict, deque
 from enum import Enum, auto
 from dataclasses import dataclass, field
 from tinygrad.dtype import ConstType, dtypes, DType
@@ -290,6 +290,7 @@ class UOpGraph:
       print(f"{i:4d} {str(u.op):20s}: {str(u.dtype) if u.dtype is not None else '':25s} " f"{str([self.uops.index(x) for x in u.src]):32s} {u.arg}")
 
   def graph_rewrite(self, sink, pm):
+    """
     # recursive rewrite
     changed = getenv("UOPS_REWRITE", 1)
     run_cnt = 0
@@ -315,6 +316,51 @@ class UOpGraph:
       sink = rewrite(sink)
       run_cnt += 1
       assert run_cnt < 100, "exceeded 100 rewrite loops!"
+    return sink
+    """
+    # rewrite nodes from top down in BFS order
+    # TODO this is copied from graph_dedup
+    unprocessed_nodes = [sink]
+    early_in_degree: DefaultDict[UOp, int] = defaultdict(int)
+    children: DefaultDict[UOp, List[UOp]] = defaultdict(list)
+    all_nodes: Dict[UOp, None] = dict()
+    while len(unprocessed_nodes):
+      n = unprocessed_nodes.pop(0)
+      if n in all_nodes: continue
+      all_nodes[n] = None
+      for x in n.src:
+        early_in_degree[n] += 1
+        children[x].append(n)
+      unprocessed_nodes += list(n.src)
+    queue = deque(x for x in all_nodes if early_in_degree[x] == 0)
+    ts: List[UOp] = []
+
+    """
+    @functools.lru_cache
+    def rewrite(u:UOp) -> UOp:
+      nonlocal changed
+      recurse_cnt = 0
+      up = u
+      # locally recursively rewrite
+      while (rewritten := pm.rewrite(up)):
+        assert recurse_cnt < 100, f"recursive_rewrite looped {up} <--> {rewritten}"
+        up = rewritten
+        recurse_cnt += 1
+      changed += recurse_cnt
+      # NOTE: this changes UOp, so we have to delete caches
+      up.src = tuple(rewrite(x) for x in up.src)
+      if 'parents' in up.__dict__: delattr(up, 'parents')
+      if 'cmp_tuple' in up.__dict__: delattr(up, 'cmp_tuple')
+      # replace with cached nodes
+      return self.nodes.setdefault(up.tuple(), up)
+    """
+    while queue:
+      up = queue.popleft()
+      ret = pm.rewrite(up)
+      if ret is not None: up.op, up.dtype, up.src, up.arg = ret.tuple()
+      for u in children[up]:
+        early_in_degree[u] -= 1
+        if early_in_degree[u] == 0: queue.append(u)
     return sink
 
   def graph_dedup(self, sink):
