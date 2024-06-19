@@ -82,8 +82,6 @@ class Lowerer(Kernel):
   def _to_uop(self, x:LazyOp) -> UOp:
     if x.op in BufferOps:
       idx, valid = st_to_uops(x.arg.st, self.ridxs if x.op is BufferOps.LOAD and x.arg.idx == -1 else self.idxs)
-      # TODO: check has_valid in UPat, not here
-      has_valid = valid.op is not UOps.CONST or valid.arg is not True
       if x.op is BufferOps.CONST:
         return UOp.alu(TernaryOps.WHERE, valid, UOp.const(x.arg.dtype, x.arg.val), UOp.const(x.arg.dtype, 0))
       if x.arg.idx == -1:
@@ -94,8 +92,8 @@ class Lowerer(Kernel):
                   (x.arg.idx, any(x.arg.idx == y.idx for y in self.outbufs)))
       if x.op is BufferOps.LOAD:
         barrier = (UOp(UOps.BARRIER, None, (self.to_uop(x.src[0]),)),) if len(x.src) else ()
-        return UOp(UOps.LOAD, x.arg.dtype.scalar(), (buf, idx) + ((valid, UOp.const(x.arg.dtype, 0)) if has_valid else ()) + barrier)
-      return UOp(UOps.STORE, None, (buf, idx, self.to_uop(x.src[0])) + ((valid,) if has_valid else ()))
+        return UOp(UOps.LOAD, x.arg.dtype.scalar(), (buf, idx) + (valid, UOp.const(x.arg.dtype, 0)) + barrier)
+      return UOp(UOps.STORE, None, (buf, idx, self.to_uop(x.src[0])) + (valid,))
 
     in_uops = tuple(self.to_uop(y) for y in x.src)
     if x.op is UnaryOps.CAST: return UOp(UOps.CAST, x.arg.scalar(), in_uops)
