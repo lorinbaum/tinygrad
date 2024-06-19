@@ -670,6 +670,8 @@ class TestLinearizer(unittest.TestCase):
     lin = Linearizer(*sched_copy[-1].ast)
     lin.hand_coded_optimizations()
     lin.linearize()
+    lin.uops.print()
+    print(lin.to_program().src)
     assert not any(u.arg == TernaryOps.WHERE for u in lin.uops), "found where where where should be folded"
 
   def test_phi_simplification(self):
