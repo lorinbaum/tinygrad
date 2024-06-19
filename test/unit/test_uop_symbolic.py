@@ -15,7 +15,7 @@ import functools
 def render(self) -> str:
   # NOTE: we need STORE so the ALU op has children
   glbl = UOp(UOps.DEFINE_GLOBAL, PtrDType(dtypes.int), arg=(0,True))
-  graph = UOpGraph([UOp(UOps.STORE, None, (glbl, UOp.const(dtypes.int, 0), self))])
+  graph = UOpGraph([UOp(UOps.STORE, None, (glbl, UOp.const(0, dtypes.int), self))])
   graph.linearize()
   if DEBUG>=5: graph.print()
   from tinygrad.renderer.cstyle import CStyleLanguage
@@ -24,12 +24,12 @@ def render(self) -> str:
   fxn = TestRenderer().render("", graph)
   return fxn.split("data0[0] = ")[1].split(";")[0]
 
-def NumNode(val): return UOp.const(dtypes.int, val)
+def NumNode(val): return UOp.const(val, dtypes.int)
 def Variable(expr, nmin, nmax):
   # TODO: fix DEFINE_VAR to not need this
   class TempVar:
     def __init__(self, x): self.expr = x
-  #return UOp(UOps.DEFINE_VAR, dtypes.int, (UOp.const(dtypes.int, nmin), UOp.const(dtypes.int, nmax)), TempVar(expr))
+  #return UOp(UOps.DEFINE_VAR, dtypes.int, (UOp.const(nmin, dtypes.int), UOp.const(nmax, dtypes.int)), TempVar(expr))
   return UOp(UOps.DEFINE_VAR, dtypes.int, tuple(), TempVar(expr))
 class Node:
   @staticmethod
