@@ -291,10 +291,10 @@ class UOpGraph:
 
   def graph_rewrite(self, sink, pm):
     if not getenv("UOPS_REWRITE", 1): return sink
+    changed = getenv("UOPS_REWRITE", 1)
 
     if not getenv("ONE_PASS", 1):
       # recursive rewrite
-      changed = getenv("UOPS_REWRITE", 1)
       run_cnt = 0
       while changed:
         changed = 0
@@ -320,6 +320,7 @@ class UOpGraph:
         assert run_cnt < 100, "exceeded 100 rewrite loops!"
       return sink
 
+
     # rewrite nodes from top down in BFS order
     # TODO this is copied from graph_dedup
     unprocessed_nodes = [sink]
@@ -335,9 +336,7 @@ class UOpGraph:
         children[x].append(n)
       unprocessed_nodes += list(n.src)
     queue = deque(x for x in all_nodes if early_in_degree[x] == 0)
-    ts: List[UOp] = []
 
-    """
     @functools.lru_cache
     def rewrite(u:UOp) -> UOp:
       nonlocal changed
@@ -355,15 +354,22 @@ class UOpGraph:
       if 'cmp_tuple' in up.__dict__: delattr(up, 'cmp_tuple')
       # replace with cached nodes
       return self.nodes.setdefault(up.tuple(), up)
-    """
+
+    def recursive_rewrite(u:UOp):
+      recurse_cnt = 0
+      up = u
+      while (rewritten := pm.rewrite(up)):
+        assert recurse_cnt < 100, f"recursive_rewrite looped {up} <--> {rewritten}"
+        up = rewritten
+        recurse_cnt += 1
+      if recurse_cnt:
+        if DEBUG >= 6: print("FINAL REWRITE", u, up)
+        u.op, u.dtype, u.src, u.arg = up.tuple()
+
     while queue:
-      up = queue.popleft()
-      ret = pm.rewrite(up)
-      if ret is not None:
-        print("REWRITE")
-        print(ret)
-        up.op, up.dtype, up.src, up.arg = ret.tuple()
-      for u in children[up]:
+      v = queue.popleft()
+      recursive_rewrite(v)
+      for u in children[v]:
         early_in_degree[u] -= 1
         if early_in_degree[u] == 0: queue.append(u)
     return sink

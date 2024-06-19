@@ -670,8 +670,6 @@ class TestLinearizer(unittest.TestCase):
     lin = Linearizer(*sched_copy[-1].ast)
     lin.hand_coded_optimizations()
     lin.linearize()
-    lin.uops.print()
-    print(lin.to_program().src)
     assert not any(u.arg == TernaryOps.WHERE for u in lin.uops), "found where where where should be folded"
 
   def test_phi_simplification(self):
@@ -681,6 +679,7 @@ class TestLinearizer(unittest.TestCase):
       k = Linearizer(*sched[0].ast)
       k.hand_coded_optimizations()
       uops = list(k.linearize().uops)
+      print(k.to_program().src)
       # ignore kernel optimized IF statements for now
       if if_op:=next((u for u in uops if u.op is UOps.IF), None):
         uops = uops[:uops.index(if_op)]
