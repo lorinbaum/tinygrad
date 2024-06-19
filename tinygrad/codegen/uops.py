@@ -314,14 +314,13 @@ class UOpGraph:
           if 'parents' in up.__dict__: delattr(up, 'parents')
           if 'cmp_tuple' in up.__dict__: delattr(up, 'cmp_tuple')
           # replace with cached nodes
+          if changed: print(u)
           return self.nodes.setdefault(up.tuple(), up)
         sink = rewrite(sink)
         run_cnt += 1
         assert run_cnt < 100, "exceeded 100 rewrite loops!"
       return sink
 
-
-    # rewrite nodes from top down in BFS order
     # TODO this is copied from graph_dedup
     unprocessed_nodes = [sink]
     early_in_degree: DefaultDict[UOp, int] = defaultdict(int)
@@ -335,27 +334,11 @@ class UOpGraph:
         early_in_degree[n] += 1
         children[x].append(n)
       unprocessed_nodes += list(n.src)
+
+    # *** rewrite nodes from top down in BFS order
     queue = deque(x for x in all_nodes if early_in_degree[x] == 0)
-
-    @functools.lru_cache
-    def rewrite(u:UOp) -> UOp:
-      nonlocal changed
-      recurse_cnt = 0
-      up = u
-      # locally recursively rewrite
-      while (rewritten := pm.rewrite(up)):
-        assert recurse_cnt < 100, f"recursive_rewrite looped {up} <--> {rewritten}"
-        up = rewritten
-        recurse_cnt += 1
-      changed += recurse_cnt
-      # NOTE: this changes UOp, so we have to delete caches
-      up.src = tuple(rewrite(x) for x in up.src)
-      if 'parents' in up.__dict__: delattr(up, 'parents')
-      if 'cmp_tuple' in up.__dict__: delattr(up, 'cmp_tuple')
-      # replace with cached nodes
-      return self.nodes.setdefault(up.tuple(), up)
-
-    def recursive_rewrite(u:UOp):
+    def rewrite(u:UOp):
+      print(u)
       recurse_cnt = 0
       up = u
       while (rewritten := pm.rewrite(up)):
@@ -363,12 +346,14 @@ class UOpGraph:
         up = rewritten
         recurse_cnt += 1
       if recurse_cnt:
-        if DEBUG >= 6: print("FINAL REWRITE", u, up)
+        if True: print("FINAL REWRITE", u, up)
         u.op, u.dtype, u.src, u.arg = up.tuple()
-
+        if 'parents' in u.__dict__: delattr(u, 'parents')
+        if 'cmp_tuple' in u.__dict__: delattr(u, 'cmp_tuple')
+      print("----------")
     while queue:
       v = queue.popleft()
-      recursive_rewrite(v)
+      rewrite(v)
       for u in children[v]:
         early_in_degree[u] -= 1
         if early_in_degree[u] == 0: queue.append(u)
