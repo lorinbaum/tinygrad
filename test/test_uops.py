@@ -234,10 +234,10 @@ class TestGatedStoreRewrite(unittest.TestCase):
     # wraps all store parents in the valid branch
     gmem = UOp(UOps.DEFINE_GLOBAL, PtrDType(dtypes.float), (), (0, True))
     gidx0 = UOp(UOps.SPECIAL, dtypes.int, (), (0, 'gidx0', 4))
-    idx = gidx0 * UOp.const(2, dtypes.int)
+    idx = gidx0 * UOp.const(dtypes.int, 2)
     value = UOp(UOps.CONST, dtypes.float, (), 42.0)
 
-    gate = UOp(UOps.ALU, dtypes.bool, (gidx0, UOp.const(1, dtypes.int)), arg=BinaryOps.CMPLT)
+    gate = UOp(UOps.ALU, dtypes.bool, (gidx0, UOp.const(dtypes.int, 1)), arg=BinaryOps.CMPLT)
     uops = UOpGraph([UOp(UOps.STORE, None, (gmem, idx, value, gate))])
     if DEBUG >= 4: print(Device[Device.DEFAULT].renderer.render("test", uops))
     if_uop = next(u for u in uops if u.op is UOps.IF)
@@ -252,11 +252,11 @@ class TestGatedStoreRewrite(unittest.TestCase):
     gmem0 = UOp(UOps.DEFINE_GLOBAL, PtrDType(dtypes.float), (), (0, True))
     gmem1 = UOp(UOps.DEFINE_GLOBAL, PtrDType(dtypes.float), (), (1, True))
     gidx0 = UOp(UOps.SPECIAL, dtypes.int, (), (0, 'gidx0', 4))
-    idx = gidx0 * UOp.const(2, dtypes.int)
+    idx = gidx0 * UOp.const(dtypes.int, 2)
     value0 = UOp(UOps.CONST, dtypes.float, (), 42.0)
     value1 = UOp(UOps.CONST, dtypes.float, (), 43.0)
 
-    gate = UOp(UOps.ALU, dtypes.bool, (gidx0, UOp.const(1, dtypes.int)), arg=BinaryOps.CMPLT)
+    gate = UOp(UOps.ALU, dtypes.bool, (gidx0, UOp.const(dtypes.int, 1)), arg=BinaryOps.CMPLT)
     outs = [UOp(UOps.STORE, None, (gmem0, idx, value0, gate))]
     outs.append(UOp(UOps.STORE, None, (gmem1, idx, value1)))
     uops = UOpGraph(outs)
