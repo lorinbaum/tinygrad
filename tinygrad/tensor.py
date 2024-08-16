@@ -832,6 +832,96 @@ class Tensor:
     if sorted(order_arg) != list(range(self.ndim)): raise RuntimeError(f"order is not a valid permutation, getting {order_arg}")
     return F.Permute.apply(self, order=order_arg)
 
+  def rearrange(self, pattern:str, **dims) -> Tensor:
+    """
+    Compact reshape and permute from einops. See: https://einops.rocks/api/rearrange/
+
+    ```python exec="true" source="above" session="tensor" result="python"
+    t = Tensor.zeros((2, 6))
+    print(t.rearrange("a (b b1)-> 1 b b1 a", b1=2).shape)
+    ```
+    """
+    input_str, output_str = pattern.replace("()", "1").replace("(", " ( ").replace(")", " ) ").split("->")
+
+    def pop_ellipsis(ellipsis:List[int], postEllipsis:bool) -> int:
+      assert len(ellipsis), f"Could not resolve {tok}. Too many variables in input."
+      return ellipsis.pop(0) if not postEllipsis else -ellipsis.pop(-1)
+
+    ellipsis, postEllipsis, expand, all_expands, in_shape = list(self.shape), False, {}, [], []
+    for tok in input_str.split(" "):
+      if (tok := tok.strip()) != "":
+        if tok.isdigit(): assert tok == "1", f"Non-unary anonymous dims not supported, got {tok} in input."
+        for c in tok: assert c.isalnum() or tok in ["(", ")", "..."], f"Got unknown character {c} in {tok} in input." 
+        if tok.isdigit() or tok in dims: 
+          val = int(tok) if tok.isdigit() else dims[tok]
+          if expand: # anonymous ones have no effect in expands. neither have named ones, but they matter for permutation
+            if not tok.isdigit(): expand["vals"].append(val)
+          else:
+            assert val == (fromShape := pop_ellipsis(ellipsis, postEllipsis)), f"{tok} does not match input {fromShape}." 
+            in_shape.append(val)
+        elif tok == "...":
+          assert "ell" not in in_shape, "Cannot resolve two ellipses in input."
+          postEllipsis = True
+          in_shape.append("ell")
+        elif tok == "(":
+          assert not expand, "Cannot next parantheses."
+          expand = {"size": pop_ellipsis(ellipsis, postEllipsis), "vals":[]}
+        elif tok ==")": 
+          assert expand, "Unterminated ( in input."
+          all_expands.append(expand)
+          in_shape.append(f"exp-{len(all_expands)}")
+          expand = {}
+        else: 
+          if expand:
+            assert -1 not in expand["vals"], f"Cannot resolve second unknown variable {tok} in input."
+            expand["vals"].append(-1)
+          else: in_shape.append(pop_ellipsis(ellipsis, postEllipsis))
+    assert not expand, f"Unterminated ) with {expand['vals']} in input."
+    if ellipsis: assert "..." in input_str, f"Missing variables for {ellipsis} in input."
+    # resolve expands and fix postEllipsis vars
+    stash = list(self.shape)
+    for s in in_shape[::-1]:
+      idx = in_shape.index(s)
+      if isinstance(s, str) and s.startswith("exp"):
+        expand = all_expands.pop(-1)
+        if expand["size"] < 0: expand["size"] = stash.pop(-1) 
+        if -1 in expand["vals"]:
+          assert expand["size"] % (other_shape := -prod(expand["vals"])) == 0, f"Cannot reshape {expand['size']} into {expand['vals']} in input" 
+          expand["vals"][expand["vals"].index(-1)] = expand["size"] // other_shape
+        else: assert prod(expand["vals"]) == expand["size"], f"Cannot reshape {expand['size']} into {expand['vals']} in input."
+        in_shape[idx:idx+1] = expand["vals"]
+      elif isinstance(s, int) and s < 0:
+        in_shape[idx] = stash.pop(-1)
+    # permutation
+    in_order = [tok.strip() for tok in input_str.split(" ") if tok.strip() not in ["", "(", ")", "1"]]
+    out_order = [tok.strip() for tok in output_str.split(" ") if tok.strip() not in ["", "(", ")", "1"]]
+    assert all([var in out_order for var in in_order] + [var in in_order for var in out_order]), f"All variables and the ellipsis if any must be in both input and output."
+    if "ell" in in_shape:
+      idx_in, idx_out, ell_vars = in_shape.index("ell"), out_order.index("..."),  [f"ell-{i}" for i in range(len(ellipsis))] 
+      in_shape[idx_in:idx_in + 1] = ellipsis
+      in_order[idx_in:idx_in + 1] = out_order[idx_out:idx_out + 1] = ell_vars # used for permutation only
+    permutation = [in_order.index(var) for var in out_order]
+    # get out_shape
+    var_vals = {var:in_shape[in_order.index(var)] for var in out_order if not var.startswith("ell-")}
+    acc, out_shape = None, []
+    for tok in output_str.split(" "):
+      if (tok := tok.strip()) != "":
+        if tok == "(": acc = 1
+        elif tok == ")":
+          out_shape.append(acc)
+          acc = None
+        elif tok == "...":
+          if acc != None: acc *= prod(ellipsis)
+          else: out_shape.extend(ellipsis)
+        elif tok.isdigit():
+          assert tok == "1", f"Non-unary anonymous dims not supported, got {tok} in output."
+          out_shape.append(1)
+        else:
+          if acc != None: acc *= var_vals[tok]
+          else: out_shape.append(var_vals[tok])
+
+    return self.reshape(tuple(in_shape)).permute(tuple(permutation)).reshape(tuple(out_shape))
+
   def flip(self, axis, *args) -> Tensor:
     """
     Returns a tensor that reverses the order of the original tensor along given `axis`.
